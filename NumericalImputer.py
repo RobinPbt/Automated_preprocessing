@@ -53,19 +53,25 @@ class NumericalImputer(Tester):
         )
         
         # We test each imputation on each variable
-        for var in self.variables: 
-            for imputation in self.imputation_list:
-                self.results_df = var_impute_test(
-                    x_train[self.variables], y_train, 
-                    x_valid[self.variables], y_valid, 
-                    var, initial_scores, score_strategy, self.results_df, self.models_dict, self.ML_type, self.score, impute=imputation
-                )
+        for var in self.variables:
+            if x_train[var].isna().sum() == 0 and x_valid[var].isna().sum() == 0: 
+                pass # If no missing values we don't need to assess imputation
+            else:
+                for imputation in self.imputation_list:
+                    self.results_df = var_impute_test(
+                        x_train[self.variables], y_train, 
+                        x_valid[self.variables], y_valid, 
+                        var, initial_scores, score_strategy, self.results_df, self.models_dict, self.ML_type, self.score, impute=imputation
+                    )
                 
         # We save best imputation for each variable
         self.best_results_df = pd.DataFrame(index=["Best result"])
 
-        for var in self.variables: 
-            self.best_results_df[var] = find_best_result(self.results_df, var, score_strategy)
+        for var in self.variables:
+            if x_train[var].isna().sum() == 0 and x_valid[var].isna().sum() == 0: 
+                pass
+            else:
+                self.best_results_df[var] = find_best_result(self.results_df, var, score_strategy)
             
         super().fit(x, y)
         
@@ -121,7 +127,7 @@ def var_impute_test(x_train, y_train, x_valid, y_valid, var, initial_scores, sco
 
     # Proceed imputation on given variable
     x_train_bis, x_valid_bis = apply_impute(x_train=x_train_bis, strategy=impute, var=var, x_valid=x_valid_bis)
-    
+
     # For other variables, fill missing values by 0
     x_train_bis.fillna(0, inplace=True)
     x_valid_bis.fillna(0, inplace=True)
@@ -131,7 +137,7 @@ def var_impute_test(x_train, y_train, x_valid, y_valid, var, initial_scores, sco
         new_scores = classifiers_test(x_train_bis, y_train, x_valid_bis, y_valid, models_dict=models_dict).loc[score]
     elif ML_type == "Regression":
         new_scores = regressors_test(x_train_bis, y_train, x_valid_bis, y_valid, models_dict=models_dict).loc[score]
-    
+
     keep_transform = test_keep_transform(initial_scores, new_scores, score_strategy)
 
     # Saving results

@@ -122,7 +122,6 @@ def combined_features_test(x_train, y_train, x_valid, y_valid, var_1, var_2, ini
     elif ML_type == "Regression":
         new_scores = regressors_test(x_train_bis, y_train, x_valid_bis, y_valid, models_dict=models_dict).loc[score]
     
-    score_strategy = find_score_optmization_strategy(score)
     keep_transform = test_keep_transform(initial_scores, new_scores, score_strategy)
 
     # Saving results
