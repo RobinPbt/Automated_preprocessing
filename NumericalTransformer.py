@@ -12,16 +12,19 @@ class NumericalTransformer(Tester):
     ----------
     - variables : name of variables to be processed, must be numerical variables (list)
     - score : score to be optimized (XX)
+    - models_dict : dict of models to test with name as key and model as value, 
+    ex : {"Random Forest" : RandomForestRegressor(random_state=5)}
+    - ML_type : type of machine learning algorithm, can be 'Regression' or 'Classification' (str)
+    - train_size : percentage of the dataset used as a training set (float in range [0:1])
     - random_state : RandomState instance (int)
-    - train_size : percentage of the dataset used as a training set (float in range [0:1]) 
     - transformation_list : transformations to test (list)
     
     Possible values are ['log', 'discretize', 'standardize', 'normalize', 'power', 'robust_scale', 'square', 'sqrt', 'cos', 'tan', 'sin']
     """
     
-    def __init__(self, variables, score, models_dict, train_size=0.8, random_state=None, transformation_list=['log', 'discretize', 'standardize', 'normalize', 'power', 'robust_scale', 'square', 'sqrt', 'cos', 'tan', 'sin']):
+    def __init__(self, variables, score, models_dict, ML_type, train_size=0.8, random_state=None, transformation_list=['log', 'discretize', 'standardize', 'normalize', 'power', 'robust_scale', 'square', 'sqrt', 'cos', 'tan', 'sin']):
         self.transformation_list = transformation_list
-        super().__init__(variables, score, models_dict, train_size, random_state)
+        super().__init__(variables, score, models_dict, ML_type, train_size, random_state)
         self.variables_transformed = variables.copy()
         
         # Test if transformation_list is correct
@@ -41,7 +44,7 @@ class NumericalTransformer(Tester):
         x_train, x_valid, y_train, y_valid = train_test_split(x, y, train_size=self.train_size, random_state=self.random_state)
         
         # DataFrame to store our results
-        self.results_df, initial_scores = init_test(x_train, y_train, x_valid, y_valid, self.score, self.models_dict)        
+        self.results_df, initial_scores = init_test(x_train, y_train, x_valid, y_valid, self.score, self.models_dict, self.ML_type)        
         
         # We test each transformation on each variable
         for var in self.variables: 
@@ -49,7 +52,7 @@ class NumericalTransformer(Tester):
                 self.results_df = var_transform_test(
                     x_train, y_train,
                     x_valid, y_valid,
-                    var, initial_scores, self.results_df, self.models_dict, self.score, self.random_state, transform=transformation,
+                    var, initial_scores, self.results_df, self.models_dict, self.ML_type, self.score, self.random_state, transform=transformation,
                 )
 
         # We save best transformation for each variable
@@ -188,7 +191,7 @@ def log_var(x, var):
     
     return x
 
-def var_transform_test(x_train, y_train, x_valid, y_valid, var, initial_scores, results_df, models_dict, score, random_state, transform):
+def var_transform_test(x_train, y_train, x_valid, y_valid, var, initial_scores, results_df, models_dict, ML_type, score, random_state, transform):
     
     x_train_bis = x_train.copy()
     x_valid_bis = x_valid.copy()
@@ -275,9 +278,13 @@ def var_transform_test(x_train, y_train, x_valid, y_valid, var, initial_scores, 
         
         x_valid_bis[var] = x_valid_bis[var].apply(np.sin)
         x_valid_bis = nan_inf_replace(x_valid_bis, var)
-        
-    # Computing and comparing results of transformation 
-    new_scores = classifiers_test(x_train_bis, y_train, x_valid_bis, y_valid, models_dict=models_dict).loc[score]
+    
+    # Computing and comparing results of imputation
+    if ML_type == "Classification":
+        new_scores = classifiers_test(x_train_bis, y_train, x_valid_bis, y_valid, models_dict=models_dict).loc[score]
+    elif ML_type == "Regression":
+        new_scores = regressors_test(x_train_bis, y_train, x_valid_bis, y_valid, models_dict=models_dict).loc[score]
+    
     keep_transform = test_keep_transform(initial_scores, new_scores)
 
     # Saving results

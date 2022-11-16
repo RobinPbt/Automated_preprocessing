@@ -12,8 +12,11 @@ class CategoricalImputerEncoder(Tester):
     ----------
     - variables : name of variables to be processed, must be numerical variables (list)
     - score : score to be optimized (XX)
+    - models_dict : dict of models to test with name as key and model as value, 
+    ex : {"Random Forest" : RandomForestRegressor(random_state=5)}
+    - ML_type : type of machine learning algorithm, can be 'Regression' or 'Classification' (str)
+    - train_size : percentage of the dataset used as a training set (float in range [0:1])
     - random_state : RandomState instance (int)
-    - train_size : percentage of the dataset used as a training set (float in range [0:1]) 
     - imputation_list : imputation to test (list)
     
     Possible values are ['most_frequent', 'nan_category']
@@ -23,10 +26,10 @@ class CategoricalImputerEncoder(Tester):
     Possible values are ['one-hot', 'ordinal']
     """
     
-    def __init__(self, variables, score, models_dict, train_size=0.8, random_state=None, imputation_list=['most_frequent', 'nan_category'], encoding_list=['one-hot', 'ordinal']):
+    def __init__(self, variables, score, models_dict, ML_type, train_size=0.8, random_state=None, imputation_list=['most_frequent', 'nan_category'], encoding_list=['one-hot', 'ordinal']):
         self.imputation_list = imputation_list
         self.encoding_list = encoding_list
-        super().__init__(variables, score, models_dict, train_size, random_state)
+        super().__init__(variables, score, models_dict, ML_type, train_size, random_state)
         
         # Test if imputation_list and encoding_list are correct
         possible_impute_list = ['most_frequent', 'nan_category']
@@ -57,7 +60,7 @@ class CategoricalImputerEncoder(Tester):
         self.results_df, initial_scores = init_test(
             x_train[numerical_var], y_train,
             x_valid[numerical_var], y_valid, 
-            self.score, self.models_dict,
+            self.score, self.models_dict, self.ML_type
         )
         
         # We create possible combinations of impuation and encoding
@@ -73,7 +76,7 @@ class CategoricalImputerEncoder(Tester):
                 self.results_df = var_impute_encode_test(
                     x_train, y_train, 
                     x_valid, y_valid, 
-                    var, initial_scores, self.results_df, self.models_dict, self.score, combination=combination,
+                    var, initial_scores, self.results_df, self.models_dict, self.ML_type, self.score, combination=combination,
                 )
 
         # We save best transformation for each variable
@@ -133,7 +136,7 @@ class CategoricalImputerEncoder(Tester):
 # ---------------------------------------------------------------------------------------------------------------
 # Functions related to the class
 
-def var_impute_encode_test(x_train, y_train, x_valid, y_valid, var, initial_scores, results_df, models_dict, score, combination):
+def var_impute_encode_test(x_train, y_train, x_valid, y_valid, var, initial_scores, results_df, models_dict, ML_type, score, combination):
     
     x_train_bis = x_train.copy()
     x_valid_bis = x_valid.copy()
@@ -169,8 +172,12 @@ def var_impute_encode_test(x_train, y_train, x_valid, y_valid, var, initial_scor
     x_train_bis.drop(categorical_var, axis=1, inplace=True)
     x_valid_bis.drop(categorical_var, axis=1, inplace=True)
 
-    # Computing and comparing results of imputation 
-    new_scores = classifiers_test(x_train_bis, y_train, x_valid_bis, y_valid, models_dict=models_dict).loc[score]
+    # Computing and comparing results of imputation
+    if ML_type == "Classification":
+        new_scores = classifiers_test(x_train_bis, y_train, x_valid_bis, y_valid, models_dict=models_dict).loc[score]
+    elif ML_type == "Regression":
+        new_scores = regressors_test(x_train_bis, y_train, x_valid_bis, y_valid, models_dict=models_dict).loc[score]
+    
     keep_transform = test_keep_transform(initial_scores, new_scores)
 
     # Saving results

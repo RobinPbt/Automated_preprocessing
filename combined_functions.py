@@ -10,6 +10,7 @@ def full_x_processing(
     y, 
     score,
     models_dict,
+    ML_type,
     random_state=None, 
     continuous_numerical_var=None, 
     discrete_numerical_var=None, 
@@ -35,17 +36,17 @@ def full_x_processing(
     x_transformed = x.copy()
     
     # Find and apply best numerical imputations
-    imputer = NumericalImputer(variables=numerical_var, score=score, models_dict=models_dict, random_state=random_state)
+    imputer = NumericalImputer(variables=numerical_var, score=score, models_dict=models_dict, ML_type=ML_type, random_state=random_state)
     x_transformed = imputer.fit_transform(x_transformed, y)
     print("Imputation done : 1/5")
     
     # Find best categorical encoding and imputation
-    encoder = CategoricalImputerEncoder(variables=low_card_categorical_var, score=score, models_dict=models_dict, random_state=random_state)
+    encoder = CategoricalImputerEncoder(variables=low_card_categorical_var, score=score, models_dict=models_dict, ML_type=ML_type, random_state=random_state)
     x_transformed = encoder.fit_transform(x_transformed, y)
     print("Low cardinality encoding done : 2/5")
     
     # Find best categorical encoding for high cardinality variables
-    high_encoder = HighCategoricalEncoder(variables=high_card_categorical_var, score=score, models_dict=models_dict, random_state=random_state)
+    high_encoder = HighCategoricalEncoder(variables=high_card_categorical_var, score=score, models_dict=models_dict, ML_type=ML_type, random_state=random_state)
     x_transformed = high_encoder.fit_transform(x_transformed, y)
     print("High cardinality encoding done : 3/5")
     
@@ -53,7 +54,7 @@ def full_x_processing(
     dict_transformers = {}
     
     for i in range(nb_iter_transformer):
-        transformer = NumericalTransformer(variables=continuous_numerical_var, score=score, models_dict=models_dict, random_state=random_state)
+        transformer = NumericalTransformer(variables=continuous_numerical_var, score=score, models_dict=models_dict, ML_type=ML_type, random_state=random_state)
         x_transformed = transformer.fit_transform(x_transformed, y)
         continuous_numerical_var = transformer.variables_transformed
         numerical_var = continuous_numerical_var + discrete_numerical_var
@@ -64,7 +65,7 @@ def full_x_processing(
     dict_combiners = {}
     
     for i in range(nb_iter_combinations):
-        combiner = NumericalCombiner(variables=numerical_var, score=score, models_dict=models_dict, random_state=random_state)
+        combiner = NumericalCombiner(variables=numerical_var, score=score, models_dict=models_dict, ML_type=ML_type, random_state=random_state)
         x_transformed = combiner.fit_transform(x_transformed, y)
         dict_transformers["combiner_{}".format(i+1)] = combiner
     print("Combination done : 5/5")

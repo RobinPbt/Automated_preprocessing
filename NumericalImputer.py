@@ -12,16 +12,19 @@ class NumericalImputer(Tester):
     ----------
     - variables : name of variables to be processed, must be numerical variables (list)
     - score : score to be optimized (XX)
-    - random_state : RandomState instance (int)
+    - models_dict : dict of models to test with name as key and model as value, 
+    ex : {"Random Forest" : RandomForestRegressor(random_state=5)}
+    - ML_type : type of machine learning algorithm, can be 'Regression' or 'Classification' (str)
     - train_size : percentage of the dataset used as a training set (float in range [0:1])
+    - random_state : RandomState instance (int)
     - imputation_list : imputation to test (list)
     
     Possible values are ['mean', 'median', 'most_frequent', 'constant']
     """
     
-    def __init__(self, variables, score, models_dict, train_size=0.8, random_state=None, imputation_list=['mean', 'median', 'most_frequent', 'constant']):
+    def __init__(self, variables, score, models_dict, ML_type, train_size=0.8, random_state=None, imputation_list=['mean', 'median', 'most_frequent', 'constant']):
         self.imputation_list = imputation_list
-        super().__init__(variables, score, models_dict, train_size, random_state)
+        super().__init__(variables, score, models_dict, ML_type, train_size, random_state)
         
         # Test if transformation_list is correct
         possible_list = ['mean', 'median', 'most_frequent', 'constant']
@@ -43,7 +46,7 @@ class NumericalImputer(Tester):
         self.results_df, initial_scores = init_test(
             x_train[self.variables].fillna(0), y_train,
             x_valid[self.variables].fillna(0), y_valid, 
-            self.score, self.models_dict,
+            self.score, self.models_dict, self.ML_type
         )
         
         # We test each imputation on each variable
@@ -52,7 +55,7 @@ class NumericalImputer(Tester):
                 self.results_df = var_impute_test(
                     x_train[self.variables], y_train, 
                     x_valid[self.variables], y_valid, 
-                    var, initial_scores, self.results_df, self.models_dict, self.score, impute=imputation,
+                    var, initial_scores, self.results_df, self.models_dict, self.ML_type, self.score, impute=imputation,
                 )
                 
         # We save best imputation for each variable
@@ -108,7 +111,7 @@ def apply_impute(x_train, strategy, var, x_valid=pd.DataFrame()):
     
     return x_train, x_valid
 
-def var_impute_test(x_train, y_train, x_valid, y_valid, var, initial_scores, results_df, models_dict, score, impute):
+def var_impute_test(x_train, y_train, x_valid, y_valid, var, initial_scores, results_df, models_dict, ML_type, score, impute):
     
     x_train_bis = x_train.copy()
     x_valid_bis = x_valid.copy()
@@ -120,8 +123,12 @@ def var_impute_test(x_train, y_train, x_valid, y_valid, var, initial_scores, res
     x_train_bis.fillna(0, inplace=True)
     x_valid_bis.fillna(0, inplace=True)
 
-    # Computing and comparing results of imputation 
-    new_scores = classifiers_test(x_train_bis, y_train, x_valid_bis, y_valid, models_dict=models_dict).loc[score]
+    # Computing and comparing results of imputation
+    if ML_type == "Classification":
+        new_scores = classifiers_test(x_train_bis, y_train, x_valid_bis, y_valid, models_dict=models_dict).loc[score]
+    elif ML_type == "Regression":
+        new_scores = regressors_test(x_train_bis, y_train, x_valid_bis, y_valid, models_dict=models_dict).loc[score]
+    
     keep_transform = test_keep_transform(initial_scores, new_scores)
 
     # Saving results

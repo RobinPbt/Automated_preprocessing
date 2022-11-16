@@ -31,17 +31,19 @@ from sklearn.preprocessing import OneHotEncoder, OrdinalEncoder
 from sklearn.preprocessing import StandardScaler, KBinsDiscretizer, Normalizer, PolynomialFeatures, PowerTransformer, RobustScaler
 import imblearn
 
-# Sklearn models
-from sklearn.ensemble import RandomForestClassifier
-from sklearn.gaussian_process import GaussianProcessClassifier
-from sklearn.linear_model import LogisticRegression
-from sklearn.svm import SVC
-
-# Evaluation
+# Evaluation - classification
 from sklearn.metrics import roc_auc_score, roc_curve
 from sklearn.metrics import accuracy_score, f1_score, precision_score, recall_score
 from sklearn.metrics import log_loss
 from sklearn.metrics import confusion_matrix, ConfusionMatrixDisplay
+
+# Evaluation - regression
+from sklearn.metrics import mean_absolute_error
+from sklearn.metrics import mean_squared_error
+from sklearn.metrics import median_absolute_error
+from sklearn.metrics import r2_score
+
+# Optimization
 from sklearn.model_selection import GridSearchCV
 from sklearn.model_selection import RandomizedSearchCV
 from scipy.stats import reciprocal
@@ -101,9 +103,6 @@ def classifiers_test(x_train, y_train, x_valid, y_valid, models_dict):
     - y_valid : vector of training labels (array-like)
     - models_dict : dict of models to test with name as key and model as value, 
     ex : {"Random Forest" : RandomForestClassifier(random_state=5)}
-    - random_state : RandomState instance (int)
-    - max_iter : Maximum number of iterations taken for the solvers to converge (int)
-    - n_jobs  : Number of CPU cores used when parallelizing over classes (int)
     """
     
     # Creating a df to store results on tested models
@@ -140,8 +139,66 @@ def classifiers_test(x_train, y_train, x_valid, y_valid, models_dict):
     results_df.index = ['accuracy', 'f1', 'precision', 'recall', 'roc_auc', 'cross_entropy', 'fit_time', 'predict_time', 'compute_score_time']
     return results_df
 
-def init_test(x_train, y_train, x_valid, y_valid, score, models_dict):
-    """Initialize the dataframe to compare test results"""
+def regressors_test(x_train, y_train, x_valid, y_valid, models_dict):
+    """
+    Function which test a bunch of sklearn regression models 
+    without hyperparameters optimization and return results on some standard metrics on a validation set.
+    
+    
+    Parameters
+    ----------
+    - x_train : matrix of training inputs (array-like)
+    - y_train : vector of training labels (array-like)
+    - x_valid : matrix of training inputs (array-like)
+    - y_valid : vector of training labels (array-like)
+    - models_dict : dict of models to test with name as key and model as value, 
+    ex : {"Random Forest" : RandomForestRegressor(random_state=5)}
+    """
+    
+    # Creating a df to store results on tested models
+    results_df = pd.DataFrame()
+    
+    for model in models_dict.keys():
+        clf = models_dict[model]
+            
+        # Train model and compute time
+        start_time = timeit.default_timer()
+        clf.fit(x_train, y_train)
+        fit_time = timeit.default_timer() - start_time
+
+        # Make predictions and compute time
+        start_time = timeit.default_timer()
+        predictions = clf.predict(x_valid)
+        predict_time = timeit.default_timer() - start_time
+
+        # Compute scores
+        start_time = timeit.default_timer()       
+        MSE = mean_squared_error(y_valid, predictions)
+        RMSE = mean_squared_error(y_valid, predictions, squared=False)
+        Mean_AE = mean_absolute_error(y_valid, predictions)
+        Median_AE = median_absolute_error(y_valid, predictions)
+        R2 = r2_score(y_valid, predictions)
+        compute_score_time = timeit.default_timer() - start_time
+
+        # Store in df
+        results_df[model] = [MSE, RMSE, Mean_AE, Median_AE, R2, fit_time, predict_time, compute_score_time]
+    
+    results_df.index = ['MSE', 'RMSE', 'Mean_AE', 'Median_AE', 'R2', 'fit_time', 'predict_time', 'compute_score_time']
+    return results_df
+
+def init_test(x_train, y_train, x_valid, y_valid, score, models_dict, ML_type):
+    """Initialize the dataframe to compare test results
+    
+    Parameters
+    ----------
+    - x_train : matrix of training inputs (array-like)
+    - y_train : vector of training labels (array-like)
+    - x_valid : matrix of training inputs (array-like)
+    - y_valid : vector of training labels (array-like)
+    - models_dict : dict of models to test with name as key and model as value, 
+    ex : {"Random Forest" : RandomForestRegressor(random_state=5)}
+    - ML_type : type of machine learning algorithm, can be 'Regression' or 'Classification' (str)
+    """
     
     # DataFrame to store our results
     results_df = pd.DataFrame(index=[
@@ -155,7 +212,11 @@ def init_test(x_train, y_train, x_valid, y_valid, score, models_dict):
     ])
     
     # Compute scores before transformation
-    initial_scores = classifiers_test(x_train, y_train, x_valid, y_valid, models_dict=models_dict).loc[score]
+    if ML_type == "Classification":
+        initial_scores = classifiers_test(x_train, y_train, x_valid, y_valid, models_dict=models_dict).loc[score]
+    elif ML_type == "Regression":
+        initial_scores = regressors_test(x_train, y_train, x_valid, y_valid, models_dict=models_dict).loc[score]
+    
     results_df["initial_scores"] = [np.mean(initial_scores), np.nan, np.max(initial_scores), np.nan, np.nan, np.nan, np.nan]
     
     return results_df, initial_scores
@@ -210,10 +271,11 @@ def nan_inf_replace(x, var):
 class Tester(ABC):
     """Parent class of testers"""
     
-    def __init__(self, variables, score, models_dict, train_size=0.8, random_state=None):
+    def __init__(self, variables, score, models_dict, ML_type, train_size=0.8, random_state=None):
         self.variables = variables
         self.score = score
         self.models_dict = models_dict
+        self.ML_type = ML_type
         self.random_state = random_state
         self.results_df = None
         self.best_results_df = None

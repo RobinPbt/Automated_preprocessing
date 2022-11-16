@@ -12,16 +12,19 @@ class NumericalCombiner(Tester):
     ----------
     - variables : name of variables to be processed, must be numerical variables (list)
     - score : score to be optimized (XX)
+    - models_dict : dict of models to test with name as key and model as value, 
+    ex : {"Random Forest" : RandomForestRegressor(random_state=5)}
+    - ML_type : type of machine learning algorithm, can be 'Regression' or 'Classification' (str)
+    - train_size : percentage of the dataset used as a training set (float in range [0:1])
     - random_state : RandomState instance (int)
-    - train_size : percentage of the dataset used as a training set (float in range [0:1]) 
     - operation_list : operations to test (list)
     
     Possible values are ['sum', 'substraction', 'division', 'multiplication']
     """
     
-    def __init__(self, variables, score, models_dict, train_size=0.8, random_state=None, operation_list = ['sum', 'substraction', 'division', 'multiplication']):
+    def __init__(self, variables, score, models_dict, ML_type, train_size=0.8, random_state=None, operation_list = ['sum', 'substraction', 'division', 'multiplication']):
         self.operation_list = operation_list
-        super().__init__(variables, score, models_dict, train_size, random_state)
+        super().__init__(variables, score, models_dict, ML_type, train_size, random_state)
         
         # Test if operation_list is correct
         possible_list = ['sum', 'substraction', 'division', 'multiplication']
@@ -40,7 +43,7 @@ class NumericalCombiner(Tester):
         x_train, x_valid, y_train, y_valid = train_test_split(x, y, train_size=self.train_size, random_state=self.random_state)
         
         # DataFrame to store our results, here we also need to add the second variable of the sum
-        self.results_df, initial_scores = init_test(x_train, y_train, x_valid, y_valid, self.score, self.models_dict)
+        self.results_df, initial_scores = init_test(x_train, y_train, x_valid, y_valid, self.score, self.models_dict, self.ML_type)
         row_add = pd.DataFrame(index=["Variable 2", "Operation"])
         row_add["initial_scores"] = np.nan
         self.results_df = pd.concat([self.results_df, row_add], axis=0)
@@ -55,7 +58,7 @@ class NumericalCombiner(Tester):
                     x_train, y_train, 
                     x_valid, y_valid, 
                     var_1, var_2, 
-                    initial_scores, self.results_df, self.models_dict, self.score,
+                    initial_scores, self.results_df, self.models_dict, self.ML_type, self.score,
                     operation=operation,
                 )
 
@@ -91,7 +94,7 @@ class NumericalCombiner(Tester):
 # ---------------------------------------------------------------------------------------------------------------
 # Functions related to the class
 
-def combined_features_test(x_train, y_train, x_valid, y_valid, var_1, var_2, initial_scores, results_df, models_dict, score, operation):
+def combined_features_test(x_train, y_train, x_valid, y_valid, var_1, var_2, initial_scores, results_df, models_dict, ML_type, score, operation):
     
     x_train_bis = x_train.copy()
     x_valid_bis = x_valid.copy()
@@ -110,8 +113,12 @@ def combined_features_test(x_train, y_train, x_valid, y_valid, var_1, var_2, ini
         x_train_bis["{}_{}_{}".format(var_1, operation, var_2)] = x_train_bis.apply(lambda p: p[var_1] * p[var_2], axis=1)
         x_valid_bis["{}_{}_{}".format(var_1, operation, var_2)] = x_valid_bis.apply(lambda p: p[var_1] * p[var_2], axis=1)
     
-    # Computing and comparing results of transformation 
-    new_scores = classifiers_test(x_train_bis, y_train, x_valid_bis, y_valid, models_dict=models_dict).loc[score]
+    # Computing and comparing results of imputation
+    if ML_type == "Classification":
+        new_scores = classifiers_test(x_train_bis, y_train, x_valid_bis, y_valid, models_dict=models_dict).loc[score]
+    elif ML_type == "Regression":
+        new_scores = regressors_test(x_train_bis, y_train, x_valid_bis, y_valid, models_dict=models_dict).loc[score]
+    
     keep_transform = test_keep_transform(initial_scores, new_scores)
 
     # Saving results
