@@ -56,11 +56,14 @@ class CategoricalImputerEncoder(Tester):
         # Split between train and validation set 
         x_train, x_valid, y_train, y_valid = train_test_split(x, y, train_size=self.train_size, random_state=self.random_state)
         
+        # Define if the score must be maximized or minimized
+        score_strategy = find_score_optmization_strategy(self.score)
+        
         # DataFrame to store our results, we use only numerical values for initial scores
         self.results_df, initial_scores = init_test(
             x_train[numerical_var], y_train,
             x_valid[numerical_var], y_valid, 
-            self.score, self.models_dict, self.ML_type
+            self.score, self.models_dict, self.ML_type, score_strategy
         )
         
         # We create possible combinations of impuation and encoding
@@ -76,14 +79,14 @@ class CategoricalImputerEncoder(Tester):
                 self.results_df = var_impute_encode_test(
                     x_train, y_train, 
                     x_valid, y_valid, 
-                    var, initial_scores, self.results_df, self.models_dict, self.ML_type, self.score, combination=combination,
+                    var, initial_scores, score_strategy, self.results_df, self.models_dict, self.ML_type, self.score, combination=combination,
                 )
 
         # We save best transformation for each variable
         self.best_results_df = pd.DataFrame(index=["Best result"])
 
         for var in self.variables: 
-            self.best_results_df[var] = find_best_result(self.results_df, var)
+            self.best_results_df[var] = find_best_result(self.results_df, var, find_score_optmization_strategy(self.score))
         
         super().fit(x, y)
         
@@ -136,7 +139,7 @@ class CategoricalImputerEncoder(Tester):
 # ---------------------------------------------------------------------------------------------------------------
 # Functions related to the class
 
-def var_impute_encode_test(x_train, y_train, x_valid, y_valid, var, initial_scores, results_df, models_dict, ML_type, score, combination):
+def var_impute_encode_test(x_train, y_train, x_valid, y_valid, var, initial_scores, score_strategy, results_df, models_dict, ML_type, score, combination):
     
     x_train_bis = x_train.copy()
     x_valid_bis = x_valid.copy()
@@ -178,18 +181,12 @@ def var_impute_encode_test(x_train, y_train, x_valid, y_valid, var, initial_scor
     elif ML_type == "Regression":
         new_scores = regressors_test(x_train_bis, y_train, x_valid_bis, y_valid, models_dict=models_dict).loc[score]
     
-    keep_transform = test_keep_transform(initial_scores, new_scores)
+    score_strategy = find_score_optmization_strategy(score)
+    keep_transform = test_keep_transform(initial_scores, new_scores, score_strategy)
 
     # Saving results
-    results_df["{}_{}_{}".format(combination[0], combination[1], var)] = [
-        np.mean(new_scores), 
-        (np.mean(new_scores) - np.mean(initial_scores)), 
-        np.max(new_scores),
-        (np.max(new_scores) - np.max(initial_scores)),
-        ((np.mean(new_scores) - np.mean(initial_scores)) + (np.max(new_scores) - np.max(initial_scores))) / 2,
-        keep_transform,
-        "{}".format(var)
-    ]
+    KPIs_scores = get_KPIs(initial_scores, new_scores, score_strategy, keep_transform, var)
+    results_df["{}_{}_{}".format(combination[0], combination[1], var)] = KPIs_scores
     
     return results_df
 

@@ -186,7 +186,27 @@ def regressors_test(x_train, y_train, x_valid, y_valid, models_dict):
     results_df.index = ['MSE', 'RMSE', 'Mean_AE', 'Median_AE', 'R2', 'fit_time', 'predict_time', 'compute_score_time']
     return results_df
 
-def init_test(x_train, y_train, x_valid, y_valid, score, models_dict, ML_type):
+def find_score_optmization_strategy(score):
+    """Define wether a given metric must be maximized or minimized"""
+    
+    # Define strategy for each metric recorded --> TO UPDATE IF WE ADD SCORES IN FUNCTIONS
+    strategy_dict = {
+        'MSE' : 'minimize', 
+        'RMSE' : 'minimize',
+        'Mean_AE' : 'minimize',
+        'Median_AE' : 'minimize',
+        'R2' : 'maximize',
+        'accuracy' : 'maximize', 
+        'f1' : 'maximize', 
+        'precision' : 'maximize', 
+        'recall' : 'maximize', 
+        'roc_auc' : 'maximize', 
+        'cross_entropy' : 'minimize',
+    }
+    
+    return strategy_dict[score]
+
+def init_test(x_train, y_train, x_valid, y_valid, score, models_dict, ML_type, score_strategy):
     """Initialize the dataframe to compare test results
     
     Parameters
@@ -200,11 +220,17 @@ def init_test(x_train, y_train, x_valid, y_valid, score, models_dict, ML_type):
     - ML_type : type of machine learning algorithm, can be 'Regression' or 'Classification' (str)
     """
     
+    # To display the right row name in results_df
+    if score_strategy == 'maximize':
+        strat = "Max"
+    elif score_strategy == 'minimize':
+        strat = "Min"
+    
     # DataFrame to store our results
     results_df = pd.DataFrame(index=[
         "Mean {}".format(score), 
         "Diff vs. initial", 
-        "Max {}".format(score), 
+        "{} {}".format(strat, score), 
         "Diff vs. initial",
         "Average diff", 
         "Keep transform", 
@@ -217,30 +243,43 @@ def init_test(x_train, y_train, x_valid, y_valid, score, models_dict, ML_type):
     elif ML_type == "Regression":
         initial_scores = regressors_test(x_train, y_train, x_valid, y_valid, models_dict=models_dict).loc[score]
     
-    results_df["initial_scores"] = [np.mean(initial_scores), np.nan, np.max(initial_scores), np.nan, np.nan, np.nan, np.nan]
+    # Save scores depending on metric
+    if score_strategy == 'maximize': 
+        results_df["initial_scores"] = [np.mean(initial_scores), np.nan, np.max(initial_scores), np.nan, np.nan, np.nan, np.nan]
+    elif score_strategy == 'minimize':
+        results_df["initial_scores"] = [np.mean(initial_scores), np.nan, np.min(initial_scores), np.nan, np.nan, np.nan, np.nan]
     
     return results_df, initial_scores
 
-def test_keep_transform(initial_scores, new_scores):
+def test_keep_transform(initial_scores, new_scores, score_strategy):
     """Define wether a transformation should be kept regarding comparizon with initial results"""
     
-    # Test wether transform had a positive impact
-    if np.mean(new_scores) > np.mean(initial_scores) and np.max(new_scores) >= np.max(initial_scores):
-        keep_transform = True
-    else :
-        keep_transform = False
+    # Test wether transform had a positive impact depending on the metrics strategy (minimize or maximize)
+    if score_strategy == 'maximize':
+        if np.mean(new_scores) > np.mean(initial_scores) and np.max(new_scores) >= np.max(initial_scores):
+            keep_transform = True
+        else :
+            keep_transform = False
+    elif score_strategy == 'minimize':
+        if np.mean(new_scores) < np.mean(initial_scores) and np.min(new_scores) <= np.min(initial_scores):
+            keep_transform = True
+        else :
+            keep_transform = False
         
     return keep_transform
 
-def find_best_result(results_df, var):
+def find_best_result(results_df, var, score_strategy):
     """After testing transformation/imputation/encoding define the best result regarding performance for each variable"""
     
     # Locate columns with the considered variable
     var_index = results_df.loc["Initial variable"][results_df.loc["Initial variable"] == var].index
     var_df = results_df[var_index]
     
-    # Locate best result
-    best_result_idx = var_df.loc["Average diff"].sort_values(ascending=False).index[0]
+    # Locate best result depending on the metrics strategy (minimize or maximize)
+    if score_strategy == 'maximize':
+        best_result_idx = var_df.loc["Average diff"].sort_values(ascending=False).index[0]
+    elif score_strategy == 'minimize':
+        best_result_idx = var_df.loc["Average diff"].sort_values(ascending=True).index[0]        
     
     # If best result is better than initial variable we keep it, else we keep initial variable
     if var_df[best_result_idx].loc["Keep transform"]:
@@ -258,6 +297,33 @@ def find_positives_results(results_df):
     var_df = results_df[var_index]
     
     return var_df
+
+def get_KPIs(initial_scores, new_scores, score_strategy, keep_transform, var):
+    """Compute main results of new scores compared to initial scores"""
+    
+    if score_strategy == 'maximize':
+        KPI_scores = [
+            np.mean(new_scores), 
+            (np.mean(new_scores) - np.mean(initial_scores)), 
+            np.max(new_scores),
+            (np.max(new_scores) - np.max(initial_scores)),
+            ((np.mean(new_scores) - np.mean(initial_scores)) + (np.max(new_scores) - np.max(initial_scores))) / 2,
+            keep_transform,
+            "{}".format(var)
+        ]
+        
+    elif score_strategy == 'minimize':
+        KPI_scores = [
+            np.mean(new_scores), 
+            (np.mean(new_scores) - np.mean(initial_scores)), 
+            np.min(new_scores),
+            (np.min(new_scores) - np.min(initial_scores)),
+            ((np.mean(new_scores) - np.mean(initial_scores)) + (np.min(new_scores) - np.min(initial_scores))) / 2,
+            keep_transform,
+            "{}".format(var)
+        ]
+        
+    return KPI_scores
 
 def nan_inf_replace(x, var):
     x[var].replace([np.inf, -np.inf], np.nan, inplace=True)

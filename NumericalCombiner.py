@@ -42,8 +42,11 @@ class NumericalCombiner(Tester):
         # Split between train and validation set 
         x_train, x_valid, y_train, y_valid = train_test_split(x, y, train_size=self.train_size, random_state=self.random_state)
         
+        # Define if the score must be maximized or minimized
+        score_strategy = find_score_optmization_strategy(self.score)
+        
         # DataFrame to store our results, here we also need to add the second variable of the sum
-        self.results_df, initial_scores = init_test(x_train, y_train, x_valid, y_valid, self.score, self.models_dict, self.ML_type)
+        self.results_df, initial_scores = init_test(x_train, y_train, x_valid, y_valid, self.score, self.models_dict, self.ML_type, score_strategy)
         row_add = pd.DataFrame(index=["Variable 2", "Operation"])
         row_add["initial_scores"] = np.nan
         self.results_df = pd.concat([self.results_df, row_add], axis=0)
@@ -58,7 +61,7 @@ class NumericalCombiner(Tester):
                     x_train, y_train, 
                     x_valid, y_valid, 
                     var_1, var_2, 
-                    initial_scores, self.results_df, self.models_dict, self.ML_type, self.score,
+                    initial_scores, score_strategy, self.results_df, self.models_dict, self.ML_type, self.score,
                     operation=operation,
                 )
 
@@ -94,7 +97,7 @@ class NumericalCombiner(Tester):
 # ---------------------------------------------------------------------------------------------------------------
 # Functions related to the class
 
-def combined_features_test(x_train, y_train, x_valid, y_valid, var_1, var_2, initial_scores, results_df, models_dict, ML_type, score, operation):
+def combined_features_test(x_train, y_train, x_valid, y_valid, var_1, var_2, initial_scores, score_strategy, results_df, models_dict, ML_type, score, operation):
     
     x_train_bis = x_train.copy()
     x_valid_bis = x_valid.copy()
@@ -119,19 +122,12 @@ def combined_features_test(x_train, y_train, x_valid, y_valid, var_1, var_2, ini
     elif ML_type == "Regression":
         new_scores = regressors_test(x_train_bis, y_train, x_valid_bis, y_valid, models_dict=models_dict).loc[score]
     
-    keep_transform = test_keep_transform(initial_scores, new_scores)
+    score_strategy = find_score_optmization_strategy(score)
+    keep_transform = test_keep_transform(initial_scores, new_scores, score_strategy)
 
     # Saving results
-    results_df["{}_{}_{}".format(var_1, operation, var_2)] = [
-        np.mean(new_scores), 
-        (np.mean(new_scores) - np.mean(initial_scores)), 
-        np.max(new_scores),
-        (np.max(new_scores) - np.max(initial_scores)),
-        ((np.mean(new_scores) - np.mean(initial_scores)) + (np.max(new_scores) - np.max(initial_scores))) / 2,
-        keep_transform,
-        "{}".format(var_1),
-        "{}".format(var_2),
-        operation,
-    ]
+    KPIs_scores = get_KPIs(initial_scores, new_scores, score_strategy, keep_transform, var_1)
+    for elt in ["{}".format(var_2), operation]: KPIs_scores.append(elt) # ajustment because df different from other classes
+    results_df["{}_{}_{}".format(var_1, operation, var_2)] = KPIs_scores
     
     return results_df
