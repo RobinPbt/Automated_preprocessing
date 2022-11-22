@@ -33,7 +33,6 @@ class FeatureSelector(Tester):
     - models_dict : dict of models to test with name as key and model as value, 
     ex : {"Random Forest" : RandomForestRegressor(random_state=5)}. Note that only wrappers methods use these models
     - ML_type : type of machine learning algorithm, can be 'Regression' or 'Classification' (str)
-    - random_state : RandomState instance (int)
     - threshold : Minimal percentage of votes a feature must get to be selected (float in range [0:1])  
     - methods_list : features selection methods to test (list)
     
@@ -123,7 +122,7 @@ class FeatureSelector(Tester):
         for method in self.methods_list:
             if method in wrappers_dict.keys():
                 for model_name in self.models_dict.keys(): # For wrappers method we need to test them for each model
-                    model = models_dict[model_name]
+                    model = self.models_dict[model_name]
                     features_kept = wrappers_dict[method](x, y, model, n_features_to_select)
                     self.votes = add_selector_results(self.votes, x, features_kept, "{}_{}".format(method, model_name))
                     methods_count += 1
@@ -248,7 +247,7 @@ def chi2_filter(x, y, n_features_to_select):
     (dependency between two nominal variables)"""
 
     selector = SelectKBest(chi2, k=n_features_to_select)
-    selector.fit(x, y)
+    selector.fit(abs(x), y) # x must be positive for chi2 test
     return selector.get_feature_names_out()
 
 def anova_filter(x, y, n_features_to_select):
@@ -263,6 +262,6 @@ def mutual_info_clas_filter(x, y, n_features_to_select):
     """Return most dependant variables to target taking mutual information 
     (dependancy between two random variables, 0 indicates no dependence and 1 strong dependence)"""
 
-    selector = SelectKBest(mi_class_corr, k=n_features_to_select)
+    selector = SelectKBest(mutual_info_classif, k=n_features_to_select)
     selector.fit(x, y)
     return selector.get_feature_names_out()
