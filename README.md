@@ -2,7 +2,7 @@
 
 This repository contains classes to perform automated preprocessing for supervised regression or classification. Please note it is a pending project.
 
-For each class, the main idea is to try a preprocessing action and to test if it improves performances vs. a baseline on a given set of models with a given evaluation metric. Parameters notably includes models to test, type of task (regression or classification), and the preprocessing actions to test.
+For each class, the main idea is to try a preprocessing action, each variable at a time, and to test if it improves performances vs. a baseline on a given set of models with a given evaluation metric. Parameters notably includes models to test, type of task (regression or classification), and the preprocessing actions to test.
 
 Each class works with a fit (taking the X and y matrices as argument) and a transform (taking X matrix as argument) methods. The fit method returns the results of each tests and gives the best results. The transform method applies the best results. 
 
